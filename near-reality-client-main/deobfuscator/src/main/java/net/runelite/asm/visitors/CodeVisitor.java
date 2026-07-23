@@ -315,7 +315,7 @@ public class CodeVisitor extends MethodVisitor
 
 		for (Parameter p : method.getParameters())
 		{
-			if (p.getName().equals(name))
+			if (p.getName() != null && p.getName().equals(name))
 			{
 				p.setLocalVariable(lv);
 				break;
