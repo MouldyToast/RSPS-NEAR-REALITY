@@ -59,7 +59,10 @@ data class WorldProfile(
     val api: ApiProfile? = null,
     val mainDatabase: DatabaseProfile? = null,
     val logsDatabase: DatabaseProfile? = null,
-    val discord: Map<String, Any>? = null
+    val discord: Map<String, Any>? = null,
+    val useWhitelist: Boolean = false,
+    val whitelistedUsernames: List<String> = emptyList(),
+    val discordToken: String? = null
 ) {
     /** Kotlin property alias so Java callers can use `.private` without backticks. */
     @get:JvmName("isPrivate")
@@ -73,6 +76,7 @@ data class WorldProfile(
     fun isLogsDatabaseEnabled(): Boolean = logsDatabase?.enabled == true
     fun isApiEnabled(): Boolean = api?.enabled == true
     fun isDiscordEnabled(): Boolean = discord != null
+    fun verify2FA(): Boolean = isApiEnabled() && !isDevelopment()
 }
 
 /**
