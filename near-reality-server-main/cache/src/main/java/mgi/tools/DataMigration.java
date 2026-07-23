@@ -40,7 +40,15 @@ public class DataMigration {
         this.portSequencesDirect = directSequences;
     }
 
+    private boolean hasArchive(Cache cache, ArchiveType type) {
+        return cache.getArchive(type) != null;
+    }
+
     public void run() {
+        if (!hasArchive(source, ArchiveType.MODELS)) {
+            logger.error("Source cache is missing MODELS archive — skipping migration");
+            return;
+        }
         portHitbars();
         portModels();
         portUnderlays();
