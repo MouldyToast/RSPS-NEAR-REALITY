@@ -28,12 +28,6 @@ buildscript {
         mavenLocal()
         gradlePluginPortal()
         maven(url = "https://repo.runelite.net")
-        maven(url = "https://rl211.jire.org") {
-            content {
-                includeModule("net.runelite.rs", "vanilla")
-                includeModule("net.runelite.rs", "vanilla-211")
-            }
-        }
         maven(url = "https://raw.githubusercontent.com/runewiki/openosrs-hosting/master")
         maven(url = "https://raw.githubusercontent.com/jbx5/hosting/master")
         maven(url = "https://raw.githubusercontent.com/jbx5/devious-hosting/master")
@@ -91,19 +85,6 @@ subprojects {
                 includeModule("net.runelite", "orange-extensions")
             }
         }
-        /*exclusiveContent {
-            forRepository {
-                maven(url = "https://rl211.jire.org") {
-                    content {
-                        includeModule("net.runelite.rs", "vanilla")
-                        includeModule("net.runelite.rs", "vanilla-211")
-                    }
-                }
-            }
-            filter {
-                includeGroup("net.runelite.rs")
-            }
-        }*/
         exclusiveContent {
             forRepository {
                 maven {
