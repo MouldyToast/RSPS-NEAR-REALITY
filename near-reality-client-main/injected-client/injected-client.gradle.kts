@@ -48,18 +48,10 @@ configurations {
     }
 }
 
-repositories {
-    maven(url = "https://rl211.jire.org") {
-        content {
-            includeModule("net.runelite.rs", "vanilla")
-            includeModule("net.runelite.rs", "vanilla-211")
-        }
-    }
-}
 
 dependencies {
-    //vanillaDep(group = "net.runelite.rs", name = "vanilla", version = ProjectVersions.rsversion.toString())
-    vanillaDep(group = "net.runelite.rs", name = "vanilla", version = ProjectVersions.rsversion.toString())
+
+    vanillaDep(files("/tmp/vanilla-211.jar"))
     rsapiDep(project(":runescape-api"))
     rsclientDep(project(":runescape-client"))
     mixinsDep(project(":runelite-mixins"))
