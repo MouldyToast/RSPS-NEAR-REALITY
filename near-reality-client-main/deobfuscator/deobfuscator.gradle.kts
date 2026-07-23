@@ -26,7 +26,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
-    id("com.github.hauner.jarTest") version "1.0.1"
 }
 
 val deobjars: Configuration = configurations.create("deobjars")
@@ -35,17 +34,9 @@ configurations {
     testImplementation.get().extendsFrom(deobjars)
 }
 
-repositories {
-    maven(url = "https://rl211.jire.org") {
-        content {
-            includeModule("net.runelite.rs", "vanilla")
-            includeModule("net.runelite.rs", "vanilla-211")
-        }
-    }
-}
 
 dependencies {
-    deobjars(group = "net.runelite.rs", name = "vanilla", version = ProjectVersions.rsversion.toString())
+    // deobjars(group = "net.runelite.rs", name = "vanilla", version = ProjectVersions.rsversion.toString())
     deobjars(project(":runescape-client"))
 
     annotationProcessor(group = "org.projectlombok", name = "lombok", version = ProjectVersions.lombokVersion)
