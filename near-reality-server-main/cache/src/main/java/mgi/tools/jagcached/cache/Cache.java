@@ -24,8 +24,16 @@ public class Cache {
 
 	public final boolean readOnly;
 
+	private boolean skipCrcs;
+
 	private Cache(String path, boolean readOnly) {
 		this.readOnly = readOnly;
+		openFiles(path);
+	}
+
+	private Cache(String path, boolean readOnly, boolean skipCrcs) {
+		this.readOnly = readOnly;
+		this.skipCrcs = skipCrcs;
 		openFiles(path);
 	}
 
@@ -45,14 +53,21 @@ public class Cache {
 			indexes = new Index[numIndices];
 			archives = new Archive[numIndices];
 			for (int i = 0; i < numIndices; i++) {
-				@SuppressWarnings("resource") RandomAccessFile indexFile = new RandomAccessFile(path + seperator + INDEX_FILE + i, readOnly ? "r" : "rw");
+				String idxPath = path + seperator + INDEX_FILE + i;
+				if (!new java.io.File(idxPath).exists()) {
+					continue;
+				}
+				@SuppressWarnings("resource") RandomAccessFile indexFile = new RandomAccessFile(idxPath, readOnly ? "r" : "rw");
 				indexes[i] = new Index(i, dataFileChannel, indexFile.getChannel(), 0xf4240);
 				archives[i] = new Archive(i, this);
 			}
 
 			crcs = new int[numIndices];
-			for (int i = 0; i < archives.length; i++) {
-				crcs[i] = getArchive(i).getCRC32();
+			if (!skipCrcs) {
+				for (int i = 0; i < archives.length; i++) {
+					Archive a = getArchive(i);
+					crcs[i] = a != null ? a.getCRC32() : 0;
+				}
 			}
 		} catch (IOException ioex) {
 			ioex.printStackTrace();
@@ -97,6 +112,10 @@ public class Cache {
 	 */
 	public static Cache openCache(String path) {
 		return openCache(path, false);
+	}
+
+	public static Cache openCacheLazy(String path) {
+		return new Cache(path, true, true);
 	}
 
 	public static Cache openCache(String path, boolean readOnly) {
@@ -194,8 +213,12 @@ public class Cache {
 		if (id < 0 || id > archives.length - 1)
 			return null;
 		Archive archive = archives[id];
+		if (archive == null)
+			return null;
 		if (!archive.isLoaded())
 			archive.load();
+		if (!archive.isLoaded())
+			return null;
 		return archive;
 	}
 
