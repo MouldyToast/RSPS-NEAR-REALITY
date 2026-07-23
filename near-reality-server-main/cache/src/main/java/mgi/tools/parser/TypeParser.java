@@ -278,7 +278,7 @@ public class TypeParser {
         Definitions.loadDefinitions(Definitions.lowPriorityDefinitions);
 
         try {
-            final Cache cache_239 = Cache.openCache("data/cache-239/cache");
+            final Cache cache_239 = Cache.openCacheLazy("data/cache-239/cache");
             DataMigration migration239 = new DataMigration(cache, cache_239, false);
             migration239.preload();
             migration239.run();
