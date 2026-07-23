@@ -89,6 +89,11 @@ public class Archive {
         int properties = unpacked.readUnsignedByte();
         useNames = (properties & 1) != 0;
         useWhirlpool = (properties & 2) != 0;
+        // Newer revisions (e.g. rev-239) add extra per-group fields to the reference table:
+        // 0x4 = compressed + uncompressed lengths (8 bytes/group), 0x8 = uncompressed CRCs (4 bytes/group).
+        // We don't use them, but we must skip them or every subsequent field misparses.
+        final boolean hasLengths = (properties & 4) != 0;
+        final boolean hasUncompressedCrcs = (properties & 8) != 0;
         groups = new Group[protocol >= 7 ? unpacked.readSmartInt() : unpacked.readUnsignedShort()];
         int[] groupIDS = new int[groups.length];
         int[] groupNames = new int[groups.length];
@@ -113,7 +118,9 @@ public class Archive {
         this.highestGroupId = highest == 0 ? 0 : (highest + 1);
         for (int i = 0; i < groups.length; i++) groupNames[i] = useNames ? unpacked.readInt() : -1;
         for (int i = 0; i < groups.length; i++) groupCRCS[i] = unpacked.readInt();
+        if (hasUncompressedCrcs) for (int i = 0; i < groups.length; i++) unpacked.readInt(); // skip uncompressed CRC
         if (useWhirlpool) for (int i = 0; i < groups.length; i++) unpacked.readBytes(groupDigests[i], 0, 64);
+        if (hasLengths) for (int i = 0; i < groups.length; i++) { unpacked.readInt(); unpacked.readInt(); } // skip lengths
         for (int i = 0; i < groups.length; i++) groupVersions[i] = unpacked.readInt();
         for (int i = 0; i < groups.length; i++) {
             int filesCount = protocol >= 7 ? unpacked.readSmartInt() : unpacked.readUnsignedShort();
