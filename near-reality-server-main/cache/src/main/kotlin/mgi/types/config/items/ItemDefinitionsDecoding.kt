@@ -87,6 +87,26 @@ object ItemDefinitionsDecoding {
             140 -> bindTemplateId = buffer.readUnsignedShort()
             148 -> placeholderId = buffer.readUnsignedShort()
             149 -> placeholderTemplate = buffer.readUnsignedShort()
+            // --- Rev-239 opcodes (rsmod reference) ---
+            200 -> {
+                // objvar array
+                val count = buffer.readUnsignedByte()
+                for (i in 0 until count) {
+                    buffer.readUnsignedShort()
+                }
+            }
+            201 -> buffer.readInt()    // playerCost
+            202 -> buffer.readInt()    // playerCostDerived
+            203 -> buffer.readInt()    // playerCostDerivedConst
+            204 -> buffer.readUnsignedShort() // stockMarketBuyLimit
+            205 -> buffer.readUnsignedShort() // stockMarketRecalcUsers
+            206 -> {} // tradeable = false (flag only)
+            207 -> buffer.readUnsignedShort() // respawnRate
+            208 -> buffer.readByte()   // dummyitem
+            209 -> buffer.readUnsignedShort() // contentGroup
+            210 -> buffer.readUnsignedShort() // transformlink
+            211 -> buffer.readUnsignedShort() // transformtemplate
+            212 -> buffer.readUnsignedByte()  // weaponCategory
             249 -> parameters = buffer.readParameters()
         }
     }

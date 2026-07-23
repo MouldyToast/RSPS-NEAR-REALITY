@@ -281,7 +281,13 @@ public class DataMigration {
 
                 12610, 12611, 12612, 12613,
                 12866, 12867, 12868, 12869,
-                13122, 13123, 13124, 13125
+                13122, 13123, 13124, 13125,
+
+                // NR custom map regions — protect from rev-239 overwrite
+                13420,  // flower poker / gamble area
+                12145,  // middleman area
+                13909,  // custom barrows
+                6729    // PVM arena
                 );
         return skips.contains(regionIDByRegion);
     }

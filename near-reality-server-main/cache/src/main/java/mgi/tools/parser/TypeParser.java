@@ -260,6 +260,26 @@ public class TypeParser {
             e.printStackTrace();
         }
 
+        // --- Port rev-239 content ---
+        unzipCache("cache-239");
+        cache.close();
+        cache = Cache.openCache("data/cache");
+        CacheManager.loadCache(cache);
+        XTEALoader.load("data/objects/xteas.json");
+        XTEALoaderPorted.load("data/cache-239-keys.json");
+        Definitions.loadDefinitions(Definitions.lowPriorityDefinitions);
+
+        try {
+            final Cache cache_239 = Cache.openCache("data/cache-239/cache");
+            DataMigration migration239 = new DataMigration(cache, cache_239, false);
+            migration239.preload();
+            migration239.run();
+            cache_239.close();
+        } catch (Exception e) {
+            log.error("Rev-239 migration failed", e);
+            e.printStackTrace();
+        }
+
         cache.close();
         cache = Cache.openCache("data/cache");
         CacheManager.loadCache(cache);
