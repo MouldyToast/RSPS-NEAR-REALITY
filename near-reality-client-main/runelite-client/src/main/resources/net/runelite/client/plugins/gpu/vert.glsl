@@ -56,7 +56,7 @@ uniform int useFog;
 uniform int fogDepth;
 uniform int drawDistance;
 uniform mat4 projectionMatrix;
-uniform vec2 textureAnimations[128];
+uniform vec2 textureAnimations[256];
 uniform int tick;
 
 out vec4 Color;
