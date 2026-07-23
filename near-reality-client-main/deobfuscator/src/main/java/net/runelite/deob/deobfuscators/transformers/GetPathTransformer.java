@@ -71,7 +71,7 @@ public class GetPathTransformer implements Transformer
 			{
 				InvokeInstruction ii = (InvokeInstruction) i;
 
-				if (ii.getMethod().getName().equals("getPath"))
+				if (ii.getMethod() != null && ii.getMethod().getName().equals("getPath"))
 				{
 					if (++count == 2)
 					{
