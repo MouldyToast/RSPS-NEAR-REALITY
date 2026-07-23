@@ -88,15 +88,15 @@ public class InvokeDynamic extends Instruction implements InvokeInstruction
 		for (int i = 0; i < paramCount; i++)
 		{
 			StackContext ctx = stack.pop();
-			ins.addPops(ctx);
+			ins.pop(ctx);
 		}
 
 		// Push return value if non-void
-		if (!sig.getReturnValue().isVoid())
+		if (!sig.isVoid())
 		{
 			StackContext ctx = new StackContext(ins, sig.getReturnValue(), Value.UNKNOWN);
 			stack.push(ctx);
-			ins.addPushes(ctx);
+			ins.push(ctx);
 		}
 
 		return ins;
