@@ -75,6 +75,10 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
     private int animMayaID = -1;
 
     private boolean oldFormat = true;
+    /** Rev-239+ format: opcodes renumbered (13=mayaId, 14=unified keyframe sounds with weight, 15=mayaStart/End, 16=new byte field). */
+    private boolean format239 = false;
+    /** Unknown 1-byte field introduced as opcode 16 in rev-239. Preserved for reference, not re-encoded. */
+    private int seqField16 = -1;
 
     public AnimationDefinitions(final int id, final ByteBuffer buffer) {
         this.id = id;
@@ -90,6 +94,23 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
 
     }
 
+    public AnimationDefinitions(final int id, final ByteBuffer buffer, boolean oldFormat, boolean format239) {
+        this.id = id;
+        this.oldFormat = oldFormat;
+        this.format239 = format239;
+        setDefaults();
+        decode(buffer);
+        if (format239 && animMayaID != -1 && soundEffects != null) {
+            // Skeletal anim: route unified rev-239 keyframe sounds to the maya sound map so
+            // encode() emits them as old-format opcode 15, matching pre-226 encoding conventions.
+            if (animMayaFrameSounds == null) {
+                animMayaFrameSounds = new HashMap<>();
+            }
+            animMayaFrameSounds.putAll(soundEffects);
+            soundEffects = null;
+        }
+    }
+
     public AnimationDefinitions clone() throws CloneNotSupportedException {
         return (AnimationDefinitions) super.clone();
     }
@@ -97,6 +118,19 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
     public static AnimationDefinitions decodeNew(int id, ByteBuffer buffer) {
         logger.info("Converting sequence into old format: {}", id);
         return new AnimationDefinitions(id, buffer, false);
+    }
+
+    /**
+     * Decodes a rev-239-format sequence (opcodes renumbered vs rev 220-225).
+     * Format verified empirically against all 14,409 seqs in OpenRS2 cache 2615:
+     * 1-12 unchanged, 13 = animMayaID (int), 14 = keyframe sounds
+     * {count u16, each: frame u16, id u16, weight u8, loops u8, location u8, retain u8},
+     * 15 = animMayaStart/End (u16 u16), 16 = new 1-byte field, 17 = mayaMasks (unchanged),
+     * 18 = debug name (string), 19 = flag (no payload).
+     */
+    public static AnimationDefinitions decodeNew239(int id, ByteBuffer buffer) {
+        logger.info("Converting rev-239 sequence into old format: {}", id);
+        return new AnimationDefinitions(id, buffer, false, true);
     }
 
     /**
@@ -294,6 +328,10 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
     }
 
     public void decode(final ByteBuffer buffer, final int opcode) {
+        if (format239 && opcode >= 13) {
+            decode239(buffer, opcode);
+            return;
+        }
         switch (opcode) {
         case 1:
             {
@@ -440,6 +478,58 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
 
     }
 
+    /** Rev-239 opcode map for opcodes >= 13. Opcodes 1-12 are unchanged and handled by the shared switch. */
+    private void decode239(final ByteBuffer buffer, final int opcode) {
+        switch (opcode) {
+            case 13:
+                animMayaID = buffer.readInt();
+                return;
+            case 14: {
+                // Unified keyframe sounds: replaces both old opcode 13 (per-frame array with
+                // null padding) and old opcode 15 (maya frame sounds). Frame is now explicit
+                // and a weight byte (default 100) was added to the sound struct.
+                final int count = buffer.readUnsignedShort();
+                if (soundEffects == null) {
+                    soundEffects = new HashMap<>();
+                }
+                for (int i = 0; i < count; i++) {
+                    final int frame = buffer.readUnsignedShort();
+                    final int soundId = buffer.readUnsignedShort();
+                    buffer.readUnsignedByte(); // weight (new in 239) - not representable in old format
+                    final int loops = buffer.readUnsignedByte();
+                    final int location = buffer.readUnsignedByte();
+                    final int retain = buffer.readUnsignedByte();
+                    if (soundId >= 1 && loops >= 1) {
+                        soundEffects.put(frame, new Sound(soundId, loops, location, retain));
+                    }
+                }
+                return;
+            }
+            case 15:
+                animMayaStart = buffer.readUnsignedShort();
+                animMayaEnd = buffer.readUnsignedShort();
+                return;
+            case 16:
+                seqField16 = buffer.readUnsignedByte();
+                return;
+            case 17: {
+                animMayaMasks = new boolean[256];
+                final int count = buffer.readUnsignedByte();
+                for (int i = 0; i < count; i++) {
+                    animMayaMasks[buffer.readUnsignedByte()] = true;
+                }
+                return;
+            }
+            case 18:
+                buffer.readString(); // debug name
+                return;
+            case 19:
+                return; // flag, no payload
+            default:
+                throw new RuntimeException("Unknown rev-239 animation opcode: " + opcode);
+        }
+    }
+
     private Sound readFrameSound(ByteBuffer stream)
     {
         int id;
@@ -547,13 +637,21 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
                 buffer.writeShort(frameId >> 16);
             }
         }
-        if (soundEffects != null) {
-            buffer.writeByte(13);
-            buffer.writeByte(soundEffects.size());
-            for(int start = 0; start < soundEffects.size(); start++) {
-                Sound sound = soundEffects.get(start);
-                if (sound != null) {
-                    buffer.writeMedium(sound.effect);
+        if (soundEffects != null && !soundEffects.isEmpty()) {
+            // Old format is a dense per-frame array: count, then one medium per frame index
+            // (0 = no sound). Frames above 254 can't be represented (count is a byte) and are dropped.
+            int maxFrame = -1;
+            for (Map.Entry<Integer, Sound> entry : soundEffects.entrySet()) {
+                if (entry.getValue() != null && entry.getKey() <= 254 && entry.getKey() > maxFrame) {
+                    maxFrame = entry.getKey();
+                }
+            }
+            if (maxFrame >= 0) {
+                buffer.writeByte(13);
+                buffer.writeByte(maxFrame + 1);
+                for (int frame = 0; frame <= maxFrame; frame++) {
+                    Sound sound = soundEffects.get(frame);
+                    buffer.writeMedium(sound != null ? sound.effect : 0);
                 }
             }
         }
@@ -562,16 +660,25 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
             buffer.writeInt(animMayaID);
         }
         if (animMayaFrameSounds != null) {
-            buffer.writeByte(15);
-            buffer.writeShort(animMayaFrameSounds.size());
-            animMayaFrameSounds.forEach((p1, sound) -> {
-                buffer.writeShort(p1);
+            int soundCount = 0;
+            for (Sound sound : animMayaFrameSounds.values()) {
                 if (sound != null) {
-                    buffer.writeMedium(sound.effect);
+                    soundCount++;
                 }
-            });
+            }
+            if (soundCount > 0) {
+                buffer.writeByte(15);
+                buffer.writeShort(soundCount);
+                animMayaFrameSounds.forEach((p1, sound) -> {
+                    if (sound != null) {
+                        buffer.writeShort(p1);
+                        buffer.writeMedium(sound.effect);
+                    }
+                });
+            }
         }
         if (animMayaStart != 0 || animMayaEnd != 0) {
+            buffer.writeByte(16);
             buffer.writeShort(animMayaStart);
             buffer.writeShort(animMayaEnd);
         }
