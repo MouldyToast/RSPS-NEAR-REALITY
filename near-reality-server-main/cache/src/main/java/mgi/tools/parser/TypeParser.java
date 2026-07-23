@@ -261,7 +261,15 @@ public class TypeParser {
         }
 
         // --- Port rev-239 content ---
-        unzipCache("cache-239");
+        // OpenRS2 zips have "cache/" as root folder, not "cache-239/",
+        // so extract INTO data/cache-239/ to get data/cache-239/cache/
+        final Path cache239Path = Path.of("data", "cache-239");
+        if (java.nio.file.Files.notExists(cache239Path)) {
+            log.info("Unzipping cache cache-239");
+            try (final ZipFile zipFile = new ZipFile("data/cache-239.zip")) {
+                zipFile.extractAll("data/cache-239");
+            }
+        }
         cache.close();
         cache = Cache.openCache("data/cache");
         CacheManager.loadCache(cache);
