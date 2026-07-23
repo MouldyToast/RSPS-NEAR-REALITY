@@ -32,7 +32,11 @@ import net.runelite.asm.attributes.code.Instructions;
 import net.runelite.asm.attributes.code.instruction.types.InvokeInstruction;
 import net.runelite.asm.execution.Frame;
 import net.runelite.asm.execution.InstructionContext;
+import net.runelite.asm.execution.Stack;
+import net.runelite.asm.execution.StackContext;
+import net.runelite.asm.execution.Value;
 import net.runelite.asm.pool.Method;
+import net.runelite.asm.signature.Signature;
 import net.runelite.deob.deobfuscators.mapping.ParallelExecutorMapping;
 import org.objectweb.asm.Handle;
 import org.objectweb.asm.MethodVisitor;
@@ -75,7 +79,27 @@ public class InvokeDynamic extends Instruction implements InvokeInstruction
 	@Override
 	public InstructionContext execute(Frame frame)
 	{
-		throw new UnsupportedOperationException("invokedynamic not supported");
+		InstructionContext ins = new InstructionContext(this, frame);
+		Stack stack = frame.getStack();
+
+		// Pop parameters described by the descriptor
+		Signature sig = new Signature(desc);
+		int paramCount = sig.size();
+		for (int i = 0; i < paramCount; i++)
+		{
+			StackContext ctx = stack.pop();
+			ins.addPops(ctx);
+		}
+
+		// Push return value if non-void
+		if (!sig.getReturnValue().isVoid())
+		{
+			StackContext ctx = new StackContext(ins, sig.getReturnValue(), Value.UNKNOWN);
+			stack.push(ctx);
+			ins.addPushes(ctx);
+		}
+
+		return ins;
 	}
 
 	@Override

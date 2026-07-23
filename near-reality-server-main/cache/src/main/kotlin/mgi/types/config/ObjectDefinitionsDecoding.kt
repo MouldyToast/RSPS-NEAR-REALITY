@@ -19,6 +19,7 @@ object ObjectDefinitionsDecoding {
                 }
             }
             2 -> name = buffer.readString()
+            3 -> buffer.readString() // desc/examine text (added rev-239)
             5 -> {
                 val size = buffer.readUnsignedByte()
                 if(size > 0) {
@@ -116,6 +117,9 @@ object ObjectDefinitionsDecoding {
             81 -> contouredGround = buffer.readUnsignedByte() * 256
             82 -> mapIconId = buffer.readUnsignedShort()
             89 -> return
+            // --- Rev-239 opcodes (rsmod reference) ---
+            90 -> {} // fixLocAnimAfterLocChange = true (flag only)
+            200 -> buffer.readUnsignedShort() // contentGroup
             249 -> buffer.readParameters()
         }
     }

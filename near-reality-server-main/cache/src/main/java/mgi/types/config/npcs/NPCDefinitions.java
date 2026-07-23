@@ -181,6 +181,10 @@ public final class NPCDefinitions implements Definitions, Cloneable, Transmogrif
                 name = buffer.readString();
                 lowercaseName = name.toLowerCase();
                 return;
+            case 3:
+                // desc/examine text (added rev-239)
+                buffer.readString();
+                return;
             case 12:
                 size = buffer.readUnsignedByte();
                 return;
@@ -376,6 +380,86 @@ public final class NPCDefinitions implements Definitions, Cloneable, Transmogrif
                 return;
             case 124:
                 height = buffer.readUnsignedShort();
+                return;
+            // --- Rev-239 opcodes (rsmod reference) ---
+            case 122:
+                // follower flag (rev-239 equivalent of NR's opcode 111)
+                isFollower = true;
+                return;
+            case 123:
+                // lowPriorityOps flag
+                return;
+            case 200:
+                // moveRestrict
+                buffer.readUnsignedByte();
+                return;
+            case 201:
+                // defaultMode
+                buffer.readUnsignedByte();
+                return;
+            case 202:
+                // blockWalk
+                buffer.readUnsignedByte();
+                return;
+            case 203: {
+                // patrol waypoints
+                int waypointCount = buffer.readUnsignedByte() + 1;
+                for (int i = 0; i < waypointCount; i++) {
+                    buffer.readInt();   // coord
+                    buffer.readUnsignedByte(); // pause delay
+                }
+                return;
+            }
+            case 204:
+                // respawnRate
+                buffer.readUnsignedShort();
+                return;
+            case 205:
+                // maxRange
+                buffer.readUnsignedByte();
+                return;
+            case 206:
+                // wanderRange
+                buffer.readUnsignedByte();
+                return;
+            case 207:
+                // attackRange
+                buffer.readUnsignedByte();
+                return;
+            case 208:
+                // huntRange
+                buffer.readUnsignedByte();
+                return;
+            case 209:
+                // huntMode (deprecated)
+                buffer.readUnsignedByte();
+                return;
+            case 210:
+                // giveChase = false
+                return;
+            case 211:
+                // timer
+                buffer.readUnsignedShort();
+                return;
+            case 212:
+                // respawnDir
+                buffer.readUnsignedByte();
+                return;
+            case 213:
+                // contentGroup
+                buffer.readUnsignedShort();
+                return;
+            case 214:
+                // heroCount
+                buffer.readUnsignedShort();
+                return;
+            case 215:
+                // regenRate
+                buffer.readUnsignedShort();
+                return;
+            case 216:
+                // huntMode (new format, nullable short)
+                buffer.readUnsignedShort();
                 return;
             case 249:
                 parameters = buffer.readParameters();

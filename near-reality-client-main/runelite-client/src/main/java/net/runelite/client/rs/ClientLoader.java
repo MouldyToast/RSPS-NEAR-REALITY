@@ -651,23 +651,8 @@ public class ClientLoader implements Supplier<Applet>
 
 	private void verifyJarEntry(JarEntry je, Certificate[][] chains) throws VerificationException
 	{
-		if (je.getName().equals("META-INF/JAGEXLTD.SF") || je.getName().equals("META-INF/JAGEXLTD.RSA"))
-		{
-			// You can't sign the signing files
-			return;
-		}
-
-		// Jar entry must match one of the trusted certificate chains
-		Certificate[] entryCertificates = je.getCertificates();
-		for (Certificate[] chain : chains)
-		{
-			if (Arrays.equals(entryCertificates, chain))
-			{
-				return;
-			}
-		}
-
-		throw new VerificationException("Unable to verify jar entry: " + je.getName());
+		// Signature verification disabled for private server use
+		return;
 	}
 
 	private void verifyWholeJar(JarInputStream jis, Certificate[][] chains) throws IOException, VerificationException

@@ -4,7 +4,7 @@ plugins {
 
 repositories {
     mavenCentral()
-    maven(url = "https://rl211.jire.org/") // RuneLite
+    maven(url = "https://repo.runelite.net") // RuneLite
 }
 
 kotlin {

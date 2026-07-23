@@ -28,7 +28,7 @@ import java.text.SimpleDateFormat
 import java.util.*
 
 plugins {
-    id("com.github.johnrengelman.shadow") version "7.1.2"
+    id("com.gradleup.shadow") version "8.3.6"
     id("com.openosrs.scriptassembler")
     java
     kotlin("jvm") version "1.6.21"

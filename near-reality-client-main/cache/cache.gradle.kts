@@ -26,7 +26,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
-    id("com.github.hauner.jarTest") version "1.0.1"
 }
 
 description = "Cache"

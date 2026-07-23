@@ -424,8 +424,18 @@ public final class AnimationDefinitions implements Definitions, Cloneable {
                 for (int i = 0; i < count; i++) {
                     animMayaMasks[buffer.readUnsignedByte()] = true;
                 }
+                return;
             }
-
+            // --- Rev-239 opcodes (rsmod reference) ---
+            case 18:
+                // debugName
+                buffer.readString();
+                return;
+            case 19:
+                // crossWorldSound flag (no bytes)
+                return;
+            default:
+                throw new RuntimeException("Unknown animation opcode: " + opcode);
         }
 
     }
