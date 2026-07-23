@@ -18,6 +18,8 @@ import mgi.types.component.SpriteDefaults;
 import mgi.types.config.AnimationDefinitions;
 import mgi.types.config.HitbarDefinitions;
 import mgi.types.config.ObjectDefinitions;
+import mgi.types.config.SpotAnimationDefinition;
+import mgi.types.config.items.ItemDefinitions;
 import mgi.types.config.npcs.NPCDefinitions;
 import mgi.utilities.ByteBuffer;
 import net.runelite.api.NpcID;
@@ -33,11 +35,23 @@ public class DataMigration {
     private Cache target;
     private Cache source;
     private boolean portSequencesDirect;
+    /**
+     * True when the source cache is rev-239+ format. Rev-239 renumbered/restructured opcodes in
+     * sequences, NPCs, items, objects, and spotanims (model ids widened to 32 bits under new
+     * opcodes), so those types must be decoded with the new format and re-encoded in the old
+     * client-compatible format instead of raw-copied.
+     */
+    private boolean source239;
 
     public DataMigration(Cache old_cache, Cache new_cache, boolean directSequences) {
         this.target = old_cache;
         this.source = new_cache;
         this.portSequencesDirect = directSequences;
+    }
+
+    public DataMigration(Cache old_cache, Cache new_cache, boolean directSequences, boolean source239) {
+        this(old_cache, new_cache, directSequences);
+        this.source239 = source239;
     }
 
     private boolean hasArchive(Cache cache, ArchiveType type) {
@@ -126,7 +140,14 @@ public class DataMigration {
                 port_index++;
                 continue;
             }
-            oldObjects.addFile(file);
+            if (source239) {
+                // Rev-239 object format has new opcodes (6/7 = 32-bit models, etc.) the rev-211
+                // client cannot read; decode with the new format and re-encode in the old format.
+                ObjectDefinitions definitions = new ObjectDefinitions(file.getID(), file.getData(), true);
+                oldObjects.addFile(new File(file.getID(), definitions.encode()));
+            } else {
+                oldObjects.addFile(file);
+            }
             successful_ports++;
             port_index++;
         }
@@ -213,7 +234,7 @@ public class DataMigration {
                 port_index++;
                 continue;
             }
-            oldGraphics.addFile(file);
+            oldGraphics.addFile(transcodeGraphic(file));
             successful_ports++;
             port_index++;
         }
@@ -223,10 +244,22 @@ public class DataMigration {
             if(file == null) {
                 continue;
             }
-            oldGraphics.addFile(file);
+            oldGraphics.addFile(transcodeGraphic(file));
         }
 
         logger.info("Successfully ported " + successful_ports + " graphics from latest OSRS cache");
+    }
+
+    /**
+     * Rev-239 spotanims use opcode 3 (32-bit model id) which the rev-211 client cannot read;
+     * decode with the new format and re-encode in the old format. Older sources pass through.
+     */
+    private File transcodeGraphic(File file) {
+        if (!source239) {
+            return file;
+        }
+        SpotAnimationDefinition definition = new SpotAnimationDefinition(file.getID(), file.getData());
+        return new File(file.getID(), definition.encode());
     }
 
     private void portMaps() {
@@ -250,25 +283,53 @@ public class DataMigration {
                     continue;
                 }
                 try {
-                    int[] keys = XTEALoaderPorted.getXTEAKeys(getRegionIDByRegion(regionX, regionY));
-                    Group landGroup = newMaps.findGroupByName("l" + regionX + "_" + regionY, keys);
-                    Group mapGroup = newMaps.findGroupByName("m" + regionX + "_" + regionY);
-
-                    final ByteBuffer mapBuffer = mapGroup == null ? null : mapGroup.findFileByID(0).getData();
-                    final ByteBuffer landBuffer = landGroup == null ? null : landGroup.findFileByID(0).getData();
-
-                    if(mapBuffer == null || landBuffer == null) {
+                    final int regionID = getRegionIDByRegion(regionX, regionY);
+                    final ByteBuffer mapBuffer;
+                    final ByteBuffer landBuffer;
+                    Group landGroup = null;
+                    if (source239) {
+                        // Rev-239 map rework: one UNENCRYPTED group per region (group id = region id)
+                        // containing file 0 = terrain (old format + a single trailing 0x00 byte),
+                        // file 1 = locs (old format, XTEA removed entirely), files 2-4 = new metadata
+                        // with no old-format representation. Verified against all 2,934 regions.
+                        Group regionGroup = newMaps.findGroupByID(regionID);
+                        if (regionGroup == null || regionGroup.fileCount() != 5) {
+                            regionY++;
+                            continue;
+                        }
+                        File terrainFile = regionGroup.findFileByID(0);
+                        File locsFile = regionGroup.findFileByID(1);
+                        mapBuffer = terrainFile == null ? null : terrainFile.getData();
+                        landBuffer = locsFile == null ? null : locsFile.getData();
+                    } else {
+                        int[] keys = XTEALoaderPorted.getXTEAKeys(regionID);
+                        landGroup = newMaps.findGroupByName("l" + regionX + "_" + regionY, keys);
+                        Group mapGroup = newMaps.findGroupByName("m" + regionX + "_" + regionY);
+                        mapBuffer = mapGroup == null ? null : mapGroup.findFileByID(0).getData();
+                        landBuffer = landGroup == null ? null : landGroup.findFileByID(0).getData();
+                        if (mapBuffer != null && landBuffer != null) {
+                            byte[] l_data = MapChanges.modifyRegionData(regionID, landBuffer.getBuffer());
+                            landGroup.findFileByID(0).setData(new ByteBuffer(l_data));
+                            landGroup.setXTEA(null);
+                            oldMaps.addGroup(landGroup);
+                            oldMaps.addGroup(mapGroup);
+                            successful_ports++;
+                        }
                         regionY++;
                         continue;
                     }
-                    byte[] l_data = MapChanges.modifyRegionData(getRegionIDByRegion(regionX, regionY), landBuffer.getBuffer());
-                    landGroup.findFileByID(0).setData(new ByteBuffer(l_data));
-                    landGroup.setXTEA(null);
-                    oldMaps.addGroup(landGroup);
-                    oldMaps.addGroup(mapGroup);
-                    //TODO Address later
-                    //TypeParser.regionChanged((regionX << 8) | regionY);
 
+                    if (mapBuffer == null || landBuffer == null) {
+                        regionY++;
+                        continue;
+                    }
+                    // strip the new single trailing byte from terrain (always 0x00)
+                    byte[] m_raw = mapBuffer.getBuffer();
+                    byte[] m_data = (m_raw.length > 0 && m_raw[m_raw.length - 1] == 0)
+                            ? java.util.Arrays.copyOf(m_raw, m_raw.length - 1) : m_raw;
+                    byte[] l_data = MapChanges.modifyRegionData(regionID, landBuffer.getBuffer());
+                    putMapGroup(oldMaps, "m" + regionX + "_" + regionY, m_data);
+                    putMapGroup(oldMaps, "l" + regionX + "_" + regionY, l_data);
                     successful_ports++;
                     regionY++;
                 }   catch (RuntimeException ex) {
@@ -280,6 +341,24 @@ public class DataMigration {
         }
 
         logger.info("Successfully ported " + successful_ports + " maps from latest OSRS cache, "+ failed_ports + " skipped");
+    }
+
+    /**
+     * Adds or replaces a named single-file map group ("mX_Y" / "lX_Y") in the target archive.
+     * Reuses the existing group's id when the name already exists so addGroup replaces it
+     * instead of creating a duplicate name under a fresh id.
+     */
+    private void putMapGroup(Archive maps, String name, byte[] data) {
+        Group existing = null;
+        try {
+            existing = maps.findGroupByName(name);
+        } catch (RuntimeException ignored) {
+        }
+        File file = new File(0, new ByteBuffer(data));
+        Group replacement = existing != null
+                ? new Group(existing.getID(), name, 1, file)
+                : new Group(name, 1, file);
+        maps.addGroup(replacement);
     }
 
     private boolean skipRegion(int regionIDByRegion) {
@@ -364,7 +443,28 @@ public class DataMigration {
                 port_index++;
                 continue;
             }
-            oldTextures.addFile(file);
+            if (source239) {
+                // Rev-239 flattened texture defs to 7 bytes: {fileId u16, averageRGB u16,
+                // opaque u8, animationDirection u8, animationSpeed u8} (single sprite only).
+                // The rev-211 client expects the old 12-byte layout, so transcode.
+                ByteBuffer in = file.getData();
+                int spriteId = in.readUnsignedShort();
+                int averageRGB = in.readUnsignedShort();
+                int opaque = in.readUnsignedByte();
+                int animationDirection = in.readUnsignedByte();
+                int animationSpeed = in.readUnsignedByte();
+                ByteBuffer out = new ByteBuffer(12);
+                out.writeShort(averageRGB);
+                out.writeByte(opaque);
+                out.writeByte(1); // sprite count
+                out.writeShort(spriteId);
+                out.writeInt(0);  // per-sprite transform, always 0 for single-sprite textures
+                out.writeByte(animationDirection);
+                out.writeByte(animationSpeed);
+                oldTextures.addFile(new File(file.getID(), out));
+            } else {
+                oldTextures.addFile(file);
+            }
             successful_ports++;
             port_index++;
         }
@@ -396,7 +496,9 @@ public class DataMigration {
             if(portSequencesDirect) {
                 oldSequences.addFile(file);
             } else {
-                AnimationDefinitions def = AnimationDefinitions.decodeNew(file.getID(), file.getData());
+                AnimationDefinitions def = source239
+                        ? AnimationDefinitions.decodeNew239(file.getID(), file.getData())
+                        : AnimationDefinitions.decodeNew(file.getID(), file.getData());
                 File newFile = new File(file.getID(), def.encode());
                 oldSequences.addFile(newFile);
             }
@@ -544,7 +646,7 @@ public class DataMigration {
             if(file == null) {
                 continue;
             }
-            oldItems.addFile(file);
+            oldItems.addFile(transcodeItem(file));
         }
 
         while(port_index < live_count) {
@@ -553,12 +655,24 @@ public class DataMigration {
                 port_index++;
                 continue;
             }
-            oldItems.addFile(file);
+            oldItems.addFile(transcodeItem(file));
             successful_ports++;
             port_index++;
         }
 
         logger.info("Successfully ported " + successful_ports + " items from latest OSRS cache");
+    }
+
+    /**
+     * Rev-239 items use opcodes 44-54 (32-bit model ids) and new flags the rev-211 client
+     * cannot read; decode with the new format and re-encode in the old format.
+     */
+    private File transcodeItem(File file) {
+        if (!source239) {
+            return file;
+        }
+        ItemDefinitions definitions = new ItemDefinitions(file.getID(), file.getData());
+        return new File(file.getID(), definitions.encode());
     }
 
     public void preload() {
