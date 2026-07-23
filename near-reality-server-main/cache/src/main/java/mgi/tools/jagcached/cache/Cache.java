@@ -47,7 +47,7 @@ public class Cache {
 			FileChannel dataFileChannel = dataFile.getChannel();
 			FileChannel referenceFileChannel = referenceFile.getChannel();
 
-			masterindex = new Index(255, dataFileChannel, referenceFileChannel, 0x7a120);
+			masterindex = new Index(255, dataFileChannel, referenceFileChannel, 0x1E8480 /* raised from 0x7a120: rev-239 MODELS ref table is 515KB */);
 
 			int numIndices = masterindex.groupCount();
 			indexes = new Index[numIndices];
@@ -80,8 +80,11 @@ public class Cache {
 	public void flush() {
 		if (archives == null)
 			throw new RuntimeException("Cache is closed.");
+		if (readOnly)
+			return; // channels are opened "r"; writing would throw NonWritableChannelException,
+			        // and a read-only source cache must never be modified anyway
 		for (Archive archive : archives)
-			if (archive.isLoaded())
+			if (archive != null && archive.isLoaded())
 				archive.finish();
 	}
 
@@ -95,7 +98,7 @@ public class Cache {
 			return; // closed cache
 		flush();
 		for (Index index : indexes)
-			index.close();
+			if (index != null) index.close();
 		masterindex.close();
 
 		archives = null;
@@ -163,7 +166,7 @@ public class Cache {
 
 			RandomAccessFile dataFile = new RandomAccessFile(path + seperator + DATA_FILE, "rw");
 			RandomAccessFile referenceFile = new RandomAccessFile(path + seperator + INDEX_FILE + "255", "rw");
-			Index store_255 = new Index(255, dataFile.getChannel(), referenceFile.getChannel(), 0x7a120);
+			Index store_255 = new Index(255, dataFile.getChannel(), referenceFile.getChannel(), 0x1E8480 /* raised from 0x7a120: rev-239 MODELS ref table is 515KB */);
 
 			for (int i = 0; i < indicesCount; i++) {
 				byte[] pdata = Helper.encodeFITContainer(new byte[] { 5, 0, 0, 0 } , 0); // empty fs (protocol 5, props 0, folders count - 0)
@@ -275,7 +278,7 @@ public class Cache {
 		if (archives == null)
 			throw new RuntimeException("Cache is closed.");
 		for (Archive archive : archives)
-			if (!archive.isLoaded())
+			if (archive != null && !archive.isLoaded())
 				archive.load();
 		flush();
 		int indicesCount = getArchiveCount();
@@ -306,7 +309,7 @@ public class Cache {
 			throw new RuntimeException("Cache is closed.");
 		}
 		for (Archive archive : archives)
-			if (!archive.isLoaded())
+			if (archive != null && !archive.isLoaded())
 				archive.load();
 		flush();
 		int indicesCount = getArchiveCount();
