@@ -43,9 +43,14 @@ public class RuneSpawnMigration {
 
     private void portDBColumns() {
         Archive oldConfigs = newCache.getArchive(ArchiveType.CONFIGS);
-        Group oldRows = oldConfigs.findGroupByID(GroupType.DBTABLE);
-
         Archive newConfigs = runespawn.getArchive(ArchiveType.CONFIGS);
+
+        if (oldConfigs == null || newConfigs == null) {
+            logger.info("Skipping DB columns port — archive not present in one of the caches");
+            return;
+        }
+
+        Group oldRows = oldConfigs.findGroupByID(GroupType.DBTABLE);
         Group newRows = newConfigs.findGroupByID(GroupType.DBTABLE);
 
         int live_count = newRows.getHighestFileId();
@@ -72,9 +77,14 @@ public class RuneSpawnMigration {
 
     private void portDBRows() {
         Archive oldConfigs = newCache.getArchive(ArchiveType.CONFIGS);
-        Group oldRows = oldConfigs.findGroupByID(GroupType.DBROW);
-
         Archive newConfigs = runespawn.getArchive(ArchiveType.CONFIGS);
+
+        if (oldConfigs == null || newConfigs == null) {
+            logger.info("Skipping DB rows port — archive not present in one of the caches");
+            return;
+        }
+
+        Group oldRows = oldConfigs.findGroupByID(GroupType.DBROW);
         Group newRows = newConfigs.findGroupByID(GroupType.DBROW);
 
         int live_count = newRows.getHighestFileId();
@@ -103,6 +113,11 @@ public class RuneSpawnMigration {
         Archive liveIdx = this.runespawn.getArchive(ArchiveType.DBTABLEINDEX);
         Archive oldIdx  = this.newCache.getArchive(ArchiveType.DBTABLEINDEX);
 
+        if (liveIdx == null || oldIdx == null) {
+            logger.info("Skipping DB_TABLE port — archive not present in one of the caches");
+            return;
+        }
+
         int live_count = liveIdx.getHighestGroupId();
         int old_count = oldIdx.getHighestGroupId();
 
@@ -128,6 +143,10 @@ public class RuneSpawnMigration {
     private void portInterfaces(int... i) {
         Archive arc = runespawn.getArchive(ArchiveType.INTERFACES);
         Archive newCacheArchive = newCache.getArchive(ArchiveType.INTERFACES);
+        if (arc == null || newCacheArchive == null) {
+            logger.info("Skipping interfaces port — archive not present in one of the caches");
+            return;
+        }
         for(int inter : i) {
             Group group = arc.findGroupByID(inter);
             newCacheArchive.addGroup(group);
