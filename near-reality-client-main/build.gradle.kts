@@ -34,7 +34,12 @@ buildscript {
     }
     dependencies {
         classpath("com.openosrs:script-assembler-plugin:1.0.1")
-        classpath("com.openosrs:injector-plugin:2.0.8")
+        classpath("com.openosrs:injector-plugin:2.0.8") {
+            exclude(group = "net.unethicalite", module = "deobfuscator")
+        }
+        classpath("net.unethicalite:deobfuscator:1.0.16-STABLE") {
+            isTransitive = false
+        }
     }
 }
 
