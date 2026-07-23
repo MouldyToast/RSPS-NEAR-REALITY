@@ -38,7 +38,7 @@ public class Parameter
 
 	public String getName()
 	{
-		return name;
+		return name != null ? name : "";
 	}
 
 	public int getAccess()
