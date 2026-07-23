@@ -38,6 +38,10 @@ import org.lwjgl.opengl.GL43C;
 class TextureManager
 {
 	private static final int TEXTURE_SIZE = 128;
+	// Max texture definitions supported; must match `uniform vec2 textureAnimations[N]` in vert.glsl.
+	// Raised from the implicit 128 (TEXTURE_SIZE was being reused as a count) for rev-239 ported
+	// textures, whose ids exceed 128 (currently up to ~211).
+	static final int MAX_TEXTURE_COUNT = 256;
 
 	int initTextureArray(TextureProvider textureProvider)
 	{
@@ -223,8 +227,8 @@ class TextureManager
 	float[] computeTextureAnimations(TextureProvider textureProvider)
 	{
 		Texture[] textures = textureProvider.getTextures();
-		float[] anims = new float[TEXTURE_SIZE * 2];
-		for (int i = 0; i < textures.length; ++i)
+		float[] anims = new float[MAX_TEXTURE_COUNT * 2];
+		for (int i = 0; i < textures.length && i < MAX_TEXTURE_COUNT; ++i)
 		{
 			Texture texture = textures[i];
 			if (texture == null)
