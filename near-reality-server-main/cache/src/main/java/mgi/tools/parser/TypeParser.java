@@ -279,7 +279,7 @@ public class TypeParser {
 
         try {
             final Cache cache_239 = Cache.openCacheLazy("data/cache-239/cache");
-            DataMigration migration239 = new DataMigration(cache, cache_239, false);
+            DataMigration migration239 = new DataMigration(cache, cache_239, false, true);
             migration239.preload();
             migration239.run();
             cache_239.close();
