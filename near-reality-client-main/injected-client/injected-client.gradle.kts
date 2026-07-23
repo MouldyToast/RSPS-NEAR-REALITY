@@ -51,7 +51,7 @@ configurations {
 
 dependencies {
 
-    vanillaDep(files("/tmp/vanilla-211.jar"))
+    vanillaDep(files("$projectDir/tmp/vanilla-211.jar"))
     rsapiDep(project(":runescape-api"))
     rsclientDep(project(":runescape-client"))
     mixinsDep(project(":runelite-mixins"))
