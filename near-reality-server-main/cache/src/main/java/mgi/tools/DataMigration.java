@@ -77,6 +77,9 @@ public class DataMigration {
         portNPCs();
         portItems();
         portMaps();
+        if (!source239) {
+            portWorldMap();
+        }
         if(!portSequencesDirect)
             portObjects();
     }
@@ -673,6 +676,167 @@ public class DataMigration {
         }
         ItemDefinitions definitions = new ItemDefinitions(file.getID(), file.getData());
         return new File(file.getID(), definitions.encode());
+    }
+
+    /**
+     * Ports world map data from the 225 source cache into the 211-based target.
+     * The in-game world map uses its own archives (idx18/19/20) that are separate
+     * from the playable region maps (idx5). Without this, the map UI shows the
+     * rev-211 world regardless of what regions are actually playable.
+     *
+     * idx19 WORLDMAPDATA:
+     *   - "details" group: one file per map area defining bounds, display origin,
+     *     zoom, and section lists. Rev-225 inserts 4 bytes after bgColor that the
+     *     rev-211 client doesn't expect; we strip them.
+     *   - All other groups (compositemap, per-area render data): raw-copied.
+     *
+     * idx18 WORLDMAPGEOGRAPHY + idx20 WORLDMAPGROUND:
+     *   - Per-square pre-baked render data. Same format between 211 and 225;
+     *     all 225 groups are copied into the target (overwrites existing shared
+     *     groups to keep render data consistent with the ported terrain).
+     */
+    private void portWorldMap() {
+        if (!hasArchive(source, ArchiveType.WORLDMAPDATA)
+                || !hasArchive(source, ArchiveType.WORLDMAPGEOGRAPHY)
+                || !hasArchive(source, ArchiveType.WORLDMAPGROUND)) {
+            logger.warn("Source cache missing worldmap archives — skipping portWorldMap");
+            return;
+        }
+
+        portWorldMapData();
+        portWorldMapSquares(ArchiveType.WORLDMAPGEOGRAPHY, "geography (idx18)");
+        portWorldMapSquares(ArchiveType.WORLDMAPGROUND, "ground (idx20)");
+        portMapLabels();
+    }
+
+    /** Port idx19 WORLDMAPDATA: transcode "details", raw-copy everything else. */
+    private void portWorldMapData() {
+        Archive srcWM = source.getArchive(ArchiveType.WORLDMAPDATA);
+        Archive tgtWM = target.getArchive(ArchiveType.WORLDMAPDATA);
+
+        if (srcWM == null || tgtWM == null) return;
+
+        int detailsNameHash = tgtWM.findGroupIdByName("details");
+        int ported = 0, transcoded = 0;
+
+        for (Group srcGroup : srcWM.getGroups()) {
+            try {
+                // Load the group's data from the source cache
+                srcWM.load(srcGroup);
+            } catch (RuntimeException e) {
+                logger.warn("Failed to load worldmap group id={}: {}", srcGroup.getID(), e.getMessage());
+                continue;
+            }
+
+            if (srcGroup.getName() == detailsNameHash) {
+                // --- Transcode "details" files: strip 4 inserted bytes ---
+                File[] srcFiles = srcGroup.getFiles();
+                File[] tgtFiles = new File[srcFiles.length];
+                for (int i = 0; i < srcFiles.length; i++) {
+                    if (srcFiles[i] == null) continue;
+                    byte[] raw = srcFiles[i].getData().getBuffer();
+                    byte[] out = transcodeWorldMapDetails(raw);
+                    tgtFiles[i] = new File(srcFiles[i].getID(), srcFiles[i].getName(), new ByteBuffer(out));
+                    transcoded++;
+                }
+                Group tgtGroup = new Group(srcGroup.getID(), srcGroup.getName(), 0, tgtFiles);
+                tgtWM.addGroup(tgtGroup);
+            } else {
+                // --- Raw-copy all other groups ---
+                tgtWM.addGroup(srcGroup);
+                ported++;
+            }
+        }
+
+        logger.info("portWorldMap: idx19 details transcoded {} files, raw-copied {} other groups", transcoded, ported);
+    }
+
+    /**
+     * Transcode a rev-225 world map "details" area file into rev-211 format.
+     * 225 inserts 4 bytes (observed: 0xFF 0x00 0x00 0x00) after the bgColor int32
+     * and before the discarded-unknown byte. Stripping them produces the exact
+     * byte sequence the rev-211 client's WorldMapArea.read() expects.
+     *
+     * Layout: string(internalName) + string(externalName) + int(origin) + int(bgColor)
+     *         + [4 INSERTED BYTES] + u8(unknown) + u8(isMain) + u8(zoom) + u8(sectionCount) + sections...
+     */
+    private byte[] transcodeWorldMapDetails(byte[] b225) {
+        // Find the position after the two null-terminated strings + 8 bytes (origin + bgColor)
+        int pos = 0;
+        // Skip first string
+        while (pos < b225.length && b225[pos] != 0) pos++;
+        pos++; // skip the null terminator
+        // Skip second string
+        while (pos < b225.length && b225[pos] != 0) pos++;
+        pos++; // skip the null terminator
+        // Skip origin (4 bytes) + bgColor (4 bytes)
+        pos += 8;
+
+        if (pos + 4 > b225.length) {
+            // File too short for the insertion to exist — return as-is (shouldn't happen)
+            return b225;
+        }
+
+        // Strip the 4 inserted bytes at 'pos'
+        byte[] result = new byte[b225.length - 4];
+        System.arraycopy(b225, 0, result, 0, pos);
+        System.arraycopy(b225, pos + 4, result, pos, b225.length - pos - 4);
+        return result;
+    }
+
+    /** Port idx18 or idx20: copy all source groups into the target. */
+    private void portWorldMapSquares(ArchiveType type, String label) {
+        Archive srcArchive = source.getArchive(type);
+        Archive tgtArchive = target.getArchive(type);
+
+        if (srcArchive == null || tgtArchive == null) return;
+
+        int ported = 0;
+        for (Group srcGroup : srcArchive.getGroups()) {
+            try {
+                srcArchive.load(srcGroup);
+            } catch (RuntimeException e) {
+                continue;
+            }
+            tgtArchive.addGroup(srcGroup);
+            ported++;
+        }
+
+        logger.info("portWorldMap: {} ported {} groups", label, ported);
+    }
+
+    /**
+     * Port MAP_LABELS (WorldMapElement definitions, config group 35) from the source cache.
+     * These define world map icons, labels, and tooltips. Without them, new map areas
+     * render without any icons or place names.
+     */
+    private void portMapLabels() {
+        Archive oldConfigs = target.getArchive(ArchiveType.CONFIGS);
+        Group oldLabels = oldConfigs.findGroupByID(GroupType.MAP_LABELS);
+
+        Archive newConfigs = source.getArchive(ArchiveType.CONFIGS);
+        Group newLabels = newConfigs.findGroupByID(GroupType.MAP_LABELS);
+
+        if (oldLabels == null || newLabels == null) return;
+
+        int old_count = oldLabels.getHighestFileId();
+        int live_count = newLabels.getHighestFileId();
+
+        int port_index = old_count;
+        int successful_ports = 0;
+
+        while (port_index < live_count) {
+            File file = newLabels.findFileByID(port_index);
+            if (file == null) {
+                port_index++;
+                continue;
+            }
+            oldLabels.addFile(file);
+            successful_ports++;
+            port_index++;
+        }
+
+        logger.info("portWorldMap: ported {} MAP_LABELS (ids {}-{})", successful_ports, old_count, live_count - 1);
     }
 
     public void preload() {
