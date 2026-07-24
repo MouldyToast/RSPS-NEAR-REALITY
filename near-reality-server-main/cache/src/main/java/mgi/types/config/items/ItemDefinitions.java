@@ -643,7 +643,8 @@ public final class ItemDefinitions implements Definitions, Cloneable {
 
     @Override
     public ByteBuffer encode() {
-        final ByteBuffer buffer = new ByteBuffer(512);
+        // 512 was too small for rev-239 items with large parameter blocks
+        final ByteBuffer buffer = new ByteBuffer(4096);
         buffer.writeByte(1);
         buffer.writeShort(inventoryModelId);
         if (!name.equals("null") && notedTemplate == -1) {
