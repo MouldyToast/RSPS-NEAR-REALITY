@@ -57,6 +57,26 @@ object ItemDefinitionsDecoding {
             }
             42 -> shiftClickIndex = buffer.readByte().toInt()
             43 -> readSubOps(buffer)
+            // --- Rev-239 opcodes (verified empirically against OpenRS2 cache 2615: all 33,736 item files parse) ---
+            15 -> {}  // rev-239 flag, no payload
+            44 -> inventoryModelId = buffer.readInt()          // replaces opcode 1 (32-bit model ids)
+            45 -> {                                            // replaces opcode 23
+                primaryMaleModel = buffer.readInt()
+                maleOffset = buffer.readUnsignedByte()
+            }
+            46 -> secondaryMaleModel = buffer.readInt()        // replaces opcode 24
+            47 -> tertiaryMaleModel = buffer.readInt()         // replaces opcode 78
+            48 -> {                                            // replaces opcode 25
+                primaryFemaleModel = buffer.readInt()
+                femaleOffset = buffer.readUnsignedByte()
+            }
+            49 -> secondaryFemaleModel = buffer.readInt()      // replaces opcode 26
+            50 -> tertiaryFemaleModel = buffer.readInt()       // replaces opcode 79
+            51 -> primaryMaleHeadModelId = buffer.readInt()    // replaces opcode 90
+            52 -> secondaryMaleHeadModelId = buffer.readInt()  // replaces opcode 92
+            53 -> primaryFemaleHeadModelId = buffer.readInt()  // replaces opcode 91
+            54 -> secondaryFemaleHeadModelId = buffer.readInt()// replaces opcode 93
+            160 -> {} // rev-239 flag, no payload
             65 -> grandExchange = true
             75 -> cacheWeight = buffer.readShort()
             78 -> tertiaryMaleModel = buffer.readUnsignedShort()
