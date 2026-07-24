@@ -64,6 +64,9 @@ public final class MapElementDefinitions implements Definitions {
     }
 
     public static MapElementDefinitions get(final int id) {
+        if (id < 0 || id >= definitions.length) {
+            return null;
+        }
         return definitions[id];
     }
 
