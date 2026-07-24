@@ -59,6 +59,13 @@ public final class RegionWMArea implements WorldMapType {
         return maxRegionY;
     }
 
+    public void setPlane(int plane) { this.plane = plane; }
+    public void setNumberOfPlanes(int numberOfPlanes) { this.numberOfPlanes = numberOfPlanes; }
+    public void setMinRegionX(int minRegionX) { this.minRegionX = minRegionX; }
+    public void setMinRegionY(int minRegionY) { this.minRegionY = minRegionY; }
+    public void setMaxRegionX(int maxRegionX) { this.maxRegionX = maxRegionX; }
+    public void setMaxRegionY(int maxRegionY) { this.maxRegionY = maxRegionY; }
+
     @Override
     public String toString() {
         return "RegionWMArea(plane=" + this.getPlane() + ", numberOfPlanes=" + this.getNumberOfPlanes() + ", " +
