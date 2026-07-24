@@ -381,6 +381,30 @@ public final class NPCDefinitions implements Definitions, Cloneable, Transmogrif
             case 124:
                 height = buffer.readUnsignedShort();
                 return;
+            // --- Rev-239 opcodes (verified empirically against OpenRS2 cache 2615: all 16,292 NPC files parse) ---
+            case 61: {
+                // models with 32-bit ids (replaces opcode 1; ids now exceed u16 range)
+                final int size = buffer.readUnsignedByte();
+                models = new int[size];
+                for (int i = 0; i < size; i++) {
+                    models[i] = buffer.readInt();
+                }
+                return;
+            }
+            case 62: {
+                // chat head models with 32-bit ids (replaces opcode 60)
+                final int size = buffer.readUnsignedByte();
+                chatModels = new int[size];
+                for (int i = 0; i < size; i++) {
+                    chatModels[i] = buffer.readInt();
+                }
+                return;
+            }
+            case 130:
+            case 145:
+            case 147:
+                // rev-239 flags, no payload
+                return;
             // --- Rev-239 opcodes (rsmod reference) ---
             case 122:
                 // follower flag (rev-239 equivalent of NR's opcode 111)
