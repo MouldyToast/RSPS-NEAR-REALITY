@@ -174,6 +174,7 @@ public class Archive {
         if (!isLoaded()) throw new RuntimeException("Using nonloaded archive.");
         if (!needsRepack()) return;
         for (Group group : groups) {
+            if (group == null) continue;
             if (group.isIndexChanged()) {
                 if (useAutomaticVersionIncrementer) group.setVersion(group.getVersion() + 1);
                 ByteBuffer buffer = group.finish();
@@ -182,7 +183,8 @@ public class Archive {
             }
         }
         if (useAutomaticVersionIncrementer) version++;
-        // sort the group by their id
+        // remove null slots and sort the groups by their id
+        groups = Arrays.stream(groups).filter(Objects::nonNull).toArray(Group[]::new);
         Arrays.sort(groups, Comparator.comparingInt(Group::getID));
         for (final Group group : groups) {
             final List<File> files = Arrays.asList(group.getFiles());
@@ -421,14 +423,14 @@ public class Archive {
      * If there's already a group with same id then
      * it gets overwritten.
      */
-    public void addGroup(Group group) {
+    public synchronized void addGroup(Group group) {
         if (!isLoaded()) throw new RuntimeException("Using nonloaded archive.");
         if (!group.isLoaded()) throw new RuntimeException("group is not loaded.");
         if (findGroupIndex(group) != -1) return;
         if (group.getID() == -1) group.setID(getFreeGroupID());
         int index = -1;
         for (int i = 0; i < groups.length; i++)
-            if (groups[i].getID() == group.getID()) {
+            if (groups[i] != null && groups[i].getID() == group.getID()) {
                 index = i;
                 break;
             }
