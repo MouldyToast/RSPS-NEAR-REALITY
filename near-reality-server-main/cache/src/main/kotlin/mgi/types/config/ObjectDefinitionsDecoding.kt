@@ -20,6 +20,46 @@ object ObjectDefinitionsDecoding {
             }
             2 -> name = buffer.readString()
             3 -> buffer.readString() // desc/examine text (added rev-239)
+            // --- Rev-239 opcodes (verified empirically against OpenRS2 cache 2615: all 62,193 object files parse) ---
+            6 -> {
+                // models + types with 32-bit model ids (replaces opcode 1)
+                val size = buffer.readUnsignedByte()
+                if(size > 0) {
+                    types = IntArray(size)
+                    models = IntArray(size)
+                    for (i in 0 until size) {
+                        models[i] = buffer.readInt()
+                        types[i] = buffer.readUnsignedByte()
+                    }
+                }
+            }
+            7 -> {
+                // models with 32-bit ids, no types (replaces opcode 5)
+                val size = buffer.readUnsignedByte()
+                if(size > 0) {
+                    types = null
+                    models = IntArray(size)
+                    for (i in 0 until size) {
+                        models[i] = buffer.readInt()
+                    }
+                }
+            }
+            93 -> { buffer.readUnsignedShort(); buffer.readUnsignedShort(); buffer.readUnsignedShort() } // rev-239, unknown 6-byte field
+            95, 96 -> buffer.readUnsignedByte() // rev-239, unknown 1-byte fields
+            100 -> {
+                // rev-239 travel-menu group header (fairy rings / spirit trees): {u8, u8, string}
+                buffer.readUnsignedByte(); buffer.readUnsignedByte(); buffer.readString()
+            }
+            101 -> {
+                // rev-239 travel-menu entry: {u8, u16, u16, i32, i32, string}
+                buffer.readUnsignedByte(); buffer.readUnsignedShort(); buffer.readUnsignedShort()
+                buffer.readInt(); buffer.readInt(); buffer.readString()
+            }
+            102 -> {
+                // rev-239 travel-menu sub-entry: {u8, u16, u16, u16, i32, i32, string}
+                buffer.readUnsignedByte(); buffer.readUnsignedShort(); buffer.readUnsignedShort()
+                buffer.readUnsignedShort(); buffer.readInt(); buffer.readInt(); buffer.readString()
+            }
             5 -> {
                 val size = buffer.readUnsignedByte()
                 if(size > 0) {
@@ -100,14 +140,14 @@ object ObjectDefinitionsDecoding {
                 ambientSoundId = buffer.readUnsignedShort()
                 ambientSoundDistance = buffer.readUnsignedByte()
                 if(!oldVersion)
-                    buffer.readUnsignedByte()
+                    ambientSoundRetain = buffer.readUnsignedByte()
             }
             79 -> {
                 anInt456 = buffer.readUnsignedShort()
                 anInt457 = buffer.readUnsignedShort()
                 ambientSoundDistance = buffer.readUnsignedByte()
                 if(!oldVersion)
-                    buffer.readUnsignedByte()
+                    ambientSoundRetain = buffer.readUnsignedByte()
                 val size = buffer.readUnsignedByte()
                 anIntArray100 = IntArray(size)
                 for (count in 0 until size) {
