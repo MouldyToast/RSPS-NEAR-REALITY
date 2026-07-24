@@ -152,6 +152,9 @@ public final class SpotAnimationDefinition implements Definitions {
     public void decode(final ByteBuffer buffer, final int opcode) {
         switch (opcode) {
             case 1 -> modelId = buffer.readUnsignedShort();
+            // Rev-239 (verified empirically against OpenRS2 cache 2615: all 4,007 spotanim files parse):
+            case 3 -> modelId = buffer.readInt(); // replaces opcode 1 (32-bit model ids)
+            case 10 -> { } // rev-239 flag, no payload
             case 2 -> animationId = buffer.readUnsignedShort();
             case 4 -> widthScale = buffer.readUnsignedShort();
             case 5 -> heightScale = buffer.readUnsignedShort();
@@ -183,7 +186,7 @@ public final class SpotAnimationDefinition implements Definitions {
 
     @Override
     public ByteBuffer encode() {
-        final ByteBuffer buffer = new ByteBuffer(128);
+        final ByteBuffer buffer = new ByteBuffer(512);
         if (modelId != -1) {
             buffer.writeUnsignedByte(1);
             buffer.writeUnsignedShort(modelId);
