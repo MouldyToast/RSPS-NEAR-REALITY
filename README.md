@@ -1,2 +1,1 @@
-# RSPS-NEAR-REALITY
-NEAR REALITY
+# Offline Play
