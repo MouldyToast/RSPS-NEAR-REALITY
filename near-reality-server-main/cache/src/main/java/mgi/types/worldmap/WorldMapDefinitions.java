@@ -375,7 +375,7 @@ public class WorldMapDefinitions {
 
     public void encode(final String areaName) {
         final ByteBuffer compositeMapBuffer = new ByteBuffer(30 * 1024);//15 kb
-        final ByteBuffer detailsBuffer = new ByteBuffer(1024);//1 kb
+        final ByteBuffer detailsBuffer = new ByteBuffer(16 * 1024);//16 kb
         /* Details **/
         detailsBuffer.writeString(identifier);
         detailsBuffer.writeString(name);
@@ -517,7 +517,8 @@ public class WorldMapDefinitions {
         for (final MapElement element : elements) {
             compositeMapBuffer.writeBigSmart(element.getId());
             final Location location = element.getLocation();
-            final String labelText = MapElementDefinitions.get(element.getId()).getText();
+            final MapElementDefinitions mapElement = MapElementDefinitions.get(element.getId());
+            final String labelText = mapElement != null ? mapElement.getText() : null;
             if ("Edgeville".equals(labelText)) {
                 location.setLocation(new Location(3088, 3501, 0));
             }
@@ -567,6 +568,57 @@ public class WorldMapDefinitions {
         }
         type.decode(buffer);
         return type;
+    }
+
+    /**
+     * Adds a surface-level game region to this world map area.
+     * Creates both the section entry (so the client knows where to display it)
+     * and the region entry (so encode() generates its render data).
+     * Call update(regionId, 0) after this to populate the render data from game terrain.
+     *
+     * @param regionX  the region's X coordinate (e.g. 19 for tile 1216)
+     * @param regionY  the region's Y coordinate (e.g. 52 for tile 3328)
+     * @param geoGroupId  a unique group ID for the idx18 geography archive entry
+     */
+    public boolean addSurfaceRegion(int regionX, int regionY, int geoGroupId) {
+        int regionId = (regionX << 8) | regionY;
+        if (regions.containsKey(regionId)) {
+            return false; // already present
+        }
+
+        // No individual section entry — the caller adds one bulk section covering
+        // the entire surface range. We only need the compositemap region entry here.
+
+        // Create a WorldMapRegion entry for the compositemap
+        WorldMapRegion region = new WorldMapRegion();
+        region.compositeMapCheck = 0;
+        region.areaCheck = 0;
+        region.minPlane = 0;
+        region.maxPlane = 4;
+        region.centerRegionX = regionX;
+        region.centerRegionY = regionY;
+        region.regionX = regionX;
+        region.regionY = regionY;
+        region.expectedRegionX = regionX;
+        region.expectedRegionY = regionY;
+        region.a = geoGroupId;
+        region.b = 0;
+
+        // Initialize render data arrays (update() will populate them)
+        region.underlays = new short[1][64][64];
+        region.overlays = new short[region.maxPlane][64][64];
+        region.overlayShapes = new byte[region.maxPlane][64][64];
+        region.overlayRotations = new byte[region.maxPlane][64][64];
+        region.objects = new WorldMapGameObject[region.maxPlane][64][64][];
+        region.flags = new int[64][64];
+        region.overlayTileHeights = new int[64][64];
+
+        regions.put(regionId, region);
+        return true;
+    }
+
+    public void addSurfaceSection(WorldMapType section) {
+        types.add(section);
     }
 
     public String getName() {
