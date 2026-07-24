@@ -82,6 +82,7 @@ import mgi.types.config.StructDefinitions;
 import mgi.types.config.enums.EnumDefinitions;
 import mgi.types.config.npcs.NPCDefinitions;
 import mgi.types.draw.sprite.SpriteGroupDefinitions;
+import mgi.types.worldmap.AdjustedRegionWMArea;
 import mgi.types.worldmap.WorldMapDefinitions;
 import mgi.utilities.Buffer;
 import mgi.utilities.ByteBuffer;
@@ -1938,6 +1939,74 @@ public class TypeParser {
         godwarsDefs.encode("godwars");
         final WorldMapDefinitions defs = WorldMapDefinitions.decode("main");
         defs.setName("Surface");
+
+        // Automatically add any surface region that has terrain data in the cache
+        // but is missing from the 225 world map. The 225 world map section list is
+        // incomplete — regions added between rev-225 and rev-239 (like most of
+        // Varlamore) aren't in it. This scans the MAPS archive and generates world
+        // map render data from the actual game terrain for every missing region.
+        {
+            final Archive mapsArchive = CacheManager.getCache().getArchive(ArchiveType.MAPS);
+            int geoId = 10000; // well above existing idx18 group IDs (~1643)
+            java.util.List<Integer> addedRegions = new java.util.ArrayList<>();
+            // One bulk section covering the entire surface range, so the client knows
+            // where to display any region in this rectangle. This avoids adding hundreds
+            // of individual sections that would overflow the u8 section count byte.
+            {
+                AdjustedRegionWMArea bulk = new AdjustedRegionWMArea();
+                bulk.setPlane(0);
+                bulk.setNumberOfPlanes(4);
+                bulk.setMinRegionX(15);
+                bulk.setMinRegionY(32);
+                bulk.setMaxRegionX(62);
+                bulk.setMaxRegionY(65);
+                bulk.setMapMinRegionX(15);
+                bulk.setMapMinRegionY(32);
+                bulk.setMapMaxRegionX(62);
+                bulk.setMapMaxRegionY(65);
+                defs.addSurfaceSection(bulk);
+            }
+            // Surface world coordinate range (covers main continent, Zeah, Varlamore, islands)
+            for (int rx = 15; rx <= 62; rx++) {
+                for (int ry = 32; ry <= 65; ry++) {
+                    int regionId = (rx << 8) | ry;
+                    // Check if terrain exists in the cache
+                    Group terrainGroup = null;
+                    try {
+                        terrainGroup = mapsArchive.findGroupByName("m" + rx + "_" + ry);
+                    } catch (Exception ignored) {
+                    }
+                    if (terrainGroup == null) continue;
+
+                    // addSurfaceRegion returns false if region already on the world map
+                    if (defs.addSurfaceRegion(rx, ry, geoId++)) {
+                        addedRegions.add(regionId);
+                    }
+                }
+            }
+            // Generate render data from actual game terrain for ALL surface regions,
+            // not just newly added ones — the 239 migration overwrites 225 terrain,
+            // so world map squares must be regenerated to match current game terrain.
+            log.info("World map: added {} new sections, regenerating render data for all surface regions...", addedRegions.size());
+            int updated = 0, skipped = 0;
+            for (int rx = 15; rx <= 62; rx++) {
+                for (int ry = 32; ry <= 65; ry++) {
+                    Group tg = null;
+                    try { tg = mapsArchive.findGroupByName("m" + rx + "_" + ry); } catch (Exception ignored) {}
+                    if (tg == null) continue;
+                    int regionId = (rx << 8) | ry;
+                    try {
+                        defs.updateFullChunks(regionId, 0);
+                        defs.update(regionId, 0);
+                        updated++;
+                    } catch (Exception e) {
+                        skipped++;
+                    }
+                }
+            }
+            log.info("World map: regenerated {} regions, skipped {} (no terrain or error)", updated, skipped);
+        }
+
         for(int region: regionsChanged) {
             defs.updateFullChunks(region, 0);
             defs.update(region, 0);
