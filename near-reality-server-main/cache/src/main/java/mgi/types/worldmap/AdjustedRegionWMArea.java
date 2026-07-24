@@ -87,6 +87,17 @@ public final class AdjustedRegionWMArea implements WorldMapType {
         return mapMaxRegionY;
     }
 
+    public void setPlane(int plane) { this.plane = plane; }
+    public void setNumberOfPlanes(int numberOfPlanes) { this.numberOfPlanes = numberOfPlanes; }
+    public void setMinRegionX(int minRegionX) { this.minRegionX = minRegionX; }
+    public void setMinRegionY(int minRegionY) { this.minRegionY = minRegionY; }
+    public void setMaxRegionX(int maxRegionX) { this.maxRegionX = maxRegionX; }
+    public void setMaxRegionY(int maxRegionY) { this.maxRegionY = maxRegionY; }
+    public void setMapMinRegionX(int mapMinRegionX) { this.mapMinRegionX = mapMinRegionX; }
+    public void setMapMinRegionY(int mapMinRegionY) { this.mapMinRegionY = mapMinRegionY; }
+    public void setMapMaxRegionX(int mapMaxRegionX) { this.mapMaxRegionX = mapMaxRegionX; }
+    public void setMapMaxRegionY(int mapMaxRegionY) { this.mapMaxRegionY = mapMaxRegionY; }
+
     @Override
     public String toString() {
         return "AdjustedRegionWMArea(plane=" + this.getPlane() + ", numberOfPlanes=" + this.getNumberOfPlanes() + ", " +
