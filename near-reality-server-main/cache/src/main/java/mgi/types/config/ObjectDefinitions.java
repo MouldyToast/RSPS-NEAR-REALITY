@@ -79,6 +79,21 @@ public class ObjectDefinitions implements Definitions, Cloneable, Transmogrifiab
         decode(buffer);
     }
 
+    /**
+     * Rev-239 source constructor. The id-based oldVersion heuristic in decode() only applies to
+     * NR's own merged cache; rev-239 caches use the new opcode 78/79 layout for ALL object ids.
+     */
+    public ObjectDefinitions(final int id, final ByteBuffer buffer, final boolean source239) {
+        this.id = id;
+        this.source239 = source239;
+        setDefaults();
+        decode(buffer);
+    }
+
+    private transient boolean source239;
+    /** Extra ambient-sound byte present in the new (id > 47337 / rev-220+) opcode 78/79 layout. */
+    public int ambientSoundRetain = 0;
+
     public static ObjectDefinitions getOrThrow(final int id) {
         final ObjectDefinitions object = get(id);
         if (object == null) {
@@ -243,7 +258,7 @@ public class ObjectDefinitions implements Definitions, Cloneable, Transmogrifiab
 
     @Override
     public void decode(final ByteBuffer buffer, final int opcode) {
-        decodeOpcode(this, buffer, opcode, this.id <= 47337);
+        decodeOpcode(this, buffer, opcode, !source239 && this.id <= 47337);
     }
 
     public String getOption(final int option) {
@@ -255,7 +270,8 @@ public class ObjectDefinitions implements Definitions, Cloneable, Transmogrifiab
 
     @Override
     public ByteBuffer encode() {
-        final ByteBuffer buffer = new ByteBuffer(2048);
+        // enlarged for rev-239 objects with large option/parameter payloads
+        final ByteBuffer buffer = new ByteBuffer(8192);
         if (types != null) {
             buffer.writeByte(1);
             buffer.writeByte(types.length);
@@ -395,16 +411,24 @@ public class ObjectDefinitions implements Definitions, Cloneable, Transmogrifiab
             buffer.writeByte(75);
             buffer.writeByte(supportItems);
         }
+        // The loader reads opcode 78/79 with an extra byte for ids > 47337 (new-version layout),
+        // so encoding must mirror the same id-based heuristic or ported objects misparse on load.
         if (ambientSoundId != -1) {
             buffer.writeByte(78);
             buffer.writeShort(ambientSoundId);
             buffer.writeByte(ambientSoundDistance);
+            if (id > 47337) {
+                buffer.writeByte(ambientSoundRetain);
+            }
         }
         if (anIntArray100 != null && anIntArray100.length != 0) {
             buffer.writeByte(79);
             buffer.writeShort(anInt456);
             buffer.writeShort(anInt457);
             buffer.writeByte(ambientSoundDistance);
+            if (id > 47337) {
+                buffer.writeByte(ambientSoundRetain);
+            }
             buffer.writeByte(anIntArray100.length);
             for (final int value : anIntArray100) {
                 buffer.writeShort(value);
@@ -419,9 +443,13 @@ public class ObjectDefinitions implements Definitions, Cloneable, Transmogrifiab
             buffer.writeShort(mapIconId);
         }
         if (transformedIds != null) {
-            buffer.writeByte(77);
+            // finalTransformation requires the opcode 92 form; the old opcode 77 form drops it.
+            buffer.writeByte(finalTransformation != -1 ? 92 : 77);
             buffer.writeShort(varbit);
             buffer.writeShort(varp);
+            if (finalTransformation != -1) {
+                buffer.writeShort(finalTransformation);
+            }
             buffer.writeByte((transformedIds.length - 2));
             for (int i = 0; i <= transformedIds.length - 2; ++i) {
                 buffer.writeShort(transformedIds[i]);
